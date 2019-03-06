@@ -20,6 +20,19 @@ pub fn build_byte_freqs<E, I : IntoIterator<Item=Result<u8, E>>>(bytes: I) -> Re
     Ok(acc)
 }
 
+/// Represents a Huffman decoding tree
+enum HuffTree {
+    /// Branch out into 2 subtrees
+    Branch(Box<HuffTree>, Box<HuffTree>),
+    /// We've reached the end of the tree, and can return a byte
+    Known(u8),
+    /// We've reached a character we don't recognise.
+    /// In decoding, this means that we need to use the following bytes
+    /// to output the next byte
+    Unknown
+}
+
+
 fn main() -> io::Result<()> {
     let mut corpus_file = String::new();
     {
