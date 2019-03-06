@@ -6,6 +6,9 @@ use std::io::Read;
 extern crate argparse;
 use argparse::{ArgumentParser, Store};
 
+mod queue;
+use queue::PriorityQueue;
+
 
 /// Construct a map from byte to number occurrences, by counting them as they
 /// come along through the Iterator. If the iterator fails at any point, this function
