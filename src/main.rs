@@ -3,7 +3,7 @@ extern crate structopt;
 use structopt::StructOpt;
 
 mod cli;
-mod coding;
+pub mod coding;
 mod queue;
 
 
