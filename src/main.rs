@@ -3,9 +3,11 @@ use std::fs::File;
 use std::io;
 use std::io::Read;
 
-extern crate argparse;
-use argparse::{ArgumentParser, Store};
+#[macro_use]
+extern crate structopt;
+use structopt::StructOpt;
 
+mod cli;
 mod queue;
 use queue::PriorityQueue;
 
@@ -36,17 +38,7 @@ enum HuffTree {
 }
 
 
-fn main() -> io::Result<()> {
-    let mut corpus_file = String::new();
-    {
-        let mut ap = ArgumentParser::new();
-        ap.refer(&mut corpus_file)
-            .add_argument(&"CorpusFile", Store, "The path of the file we'll count frequencies from")
-            .required();
-        ap.parse_args_or_exit();
-    }    
-    let file = File::open(corpus_file)?;
-    let map = build_byte_freqs(file.bytes())?;
-    println!("Frequencies: {:?}", map);
-    Ok(())
+fn main() {
+    let opt = cli::Opt::from_args();
+    println!("{:?}", opt);
 }
