@@ -100,10 +100,8 @@ pub enum HuffTree {
     Branch(Box<HuffTree>, Box<HuffTree>),
     /// We've reached the end of the tree, and can return a byte
     Known(u8),
-    /// We've reached a character we don't recognise.
-    /// In decoding, this means that we need to use the following bytes
-    /// to output the next byte
-    Unknown
+    /// This is used to encode the end of the transmission
+    EOF
 }
 
 impl HuffTree {
@@ -112,7 +110,7 @@ impl HuffTree {
             (count as u64, HuffTree::Known(byte))
         }).collect();
         let mut q = PriorityQueue::from_data(pairs);
-        q.insert(0, HuffTree::Unknown);
+        q.insert(0, HuffTree::EOF);
         while let Some(((count1, tree1), (count2, tree2))) = q.remove_two() {
             let branch = HuffTree::Branch(Box::new(tree1), Box::new(tree2));
             q.insert(count1 + count2, branch);
@@ -127,7 +125,7 @@ impl HuffTree {
 /// A writer using a hufftree to write bytes to some source
 pub struct HuffWriter {
     map: HashMap<u8, (u64, usize)>,
-    default: (u64, usize),
+    eof: (u64, usize),
     shift: usize,
     scratch: u64
 }
@@ -137,18 +135,18 @@ impl HuffWriter {
         let mut trees = Vec::new();
         trees.push((start_tree, 0, 0));
         let mut map = HashMap::new();
-        let mut default = (0, 0);
+        let mut eof = (0, 0);
         while let Some((tree, bits, shift)) = trees.pop() {
             match tree {
                 HuffTree::Branch(left, right) => {
                     trees.push((*left, bits, shift + 1));
                     trees.push((*right, (1 << shift) | bits, shift + 1));
                 }
-                HuffTree::Unknown => default = (bits, shift),
+                HuffTree::EOF => eof = (bits, shift),
                 HuffTree::Known(byte) => { map.insert(byte, (bits, shift)); }
             }
         }
-        HuffWriter { map, default, shift: 0, scratch: 0 }
+        HuffWriter { map, eof, shift: 0, scratch: 0 }
     }
 
     fn write_bits<W: io::Write>(&mut self, bits: u64, bit_size: usize, writer: &mut W) -> io::Result<()> {
@@ -171,18 +169,20 @@ impl HuffWriter {
     }
 
     pub fn write_byte<W: io::Write>(&mut self, byte: u8, writer: &mut W) -> io::Result<()> {
+        // Since we used the same file to generate the map that we're reading from
+        // The other branch should never be reached in practice
         if let Some(&(bits, bit_size)) = self.map.get(&byte) {
             self.write_bits(bits, bit_size, writer)
         } else {
-            let (bits, bit_size) = self.default;
-            self.write_bits(bits, bit_size, writer)?;
-            writer.write_all(&[byte])
+            Ok(())
         }
     }
 
     /// Write the end of the transmission, flushing out the remaining bits, and writing
     /// the EOF symbol
     pub fn end_transmission<W: io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        let (bits, bit_size) = self.eof;
+        self.write_bits(bits, bit_size, writer)?;
         // this won't write anything if self.shift is 0, avoiding writing the last bytes twice
         write_u64_trimmed(writer, self.scratch, self.shift)
     }
@@ -201,7 +201,7 @@ mod test {
         let tree = HuffTree::Branch(
             Box::new(HuffTree::Branch(
                 Box::new(HuffTree::Branch(
-                    Box::new(HuffTree::Unknown), 
+                    Box::new(HuffTree::EOF), 
                     Box::new(HuffTree::Known(70))
                 )),
                 Box::new(HuffTree::Known(71))
