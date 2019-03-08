@@ -54,20 +54,30 @@ impl HuffTree {
 }
 
 #[inline]
-fn mask(size: usize) -> u8 {
-    if size == 8 {
-        0b1111_1111
+fn mask(size: usize) -> u64 {
+    if size == 64 {
+        u64::max_value()
     } else {
         (1 << size) - 1
     }
 }
 
+fn write_u64<W: io::Write>(writer: &mut W, mut num: u64) -> io::Result<()> {
+    let mut bytes = [0; 8];
+    for byte in bytes.iter_mut().rev() {
+        *byte = num as u8;
+        num >>= 8;
+    }
+    writer.write_all(&bytes)
+}
+
+
 /// A writer using a hufftree to write bytes to some source
 pub struct HuffWriter {
-    map: HashMap<u8, (u8, usize)>,
-    default: (u8, usize),
+    map: HashMap<u8, (u64, usize)>,
+    default: (u64, usize),
     shift: usize,
-    scratch: u8
+    scratch: u64
 }
 
 impl HuffWriter {
@@ -89,18 +99,18 @@ impl HuffWriter {
         HuffWriter { map, default, shift: 0, scratch: 0 }
     }
 
-    fn write_bits<W: io::Write>(&mut self, bits: u8, bit_size: usize, writer: &mut W) -> io::Result<()> {
-        let bit_size_left = 8 - self.shift;
-        if self.shift == 8 {
+    fn write_bits<W: io::Write>(&mut self, bits: u64, bit_size: usize, writer: &mut W) -> io::Result<()> {
+        let bit_size_left = 64 - self.shift;
+        if self.shift == 64 {
             let scratch = self.scratch;
             self.scratch = bits;
             self.shift = bit_size;
-            writer.write_all(&[scratch])
+            write_u64(writer, scratch)
         } else if bit_size > bit_size_left {
             let to_write = ((bits & mask(bit_size_left)) << self.shift) | self.scratch;
             self.scratch = bits >> bit_size_left;
             self.shift = bit_size - bit_size_left;
-            writer.write_all(&[to_write])
+            write_u64(writer, to_write)
         } else {
             self.scratch = (bits << self.shift) | self.scratch;
             self.shift += bit_size;
