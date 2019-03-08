@@ -41,9 +41,11 @@ impl Frequencies {
         // This guarantees a consistent ordering of pairs, and thus of the H Tree
         for byte in 0..=255 {
             if let Some(v) = acc.get(&byte) {
-                pairs.push((byte, (v * 255 / max) as u8))
+                pairs.push(((v * 255 / max) as u8, byte))
             }
         }
+        // Sort pairs in reverse order by count
+        pairs.sort_by(|(count1, _), (count2, _)| count2.cmp(count1));
         Ok(Frequencies { pairs })
     }
 }
@@ -69,10 +71,10 @@ pub enum HuffTree {
 
 impl HuffTree {
     pub fn from_freqs(freqs: &Frequencies) -> Self {
-        let mut q = PriorityQueue::with_capacity(freqs.pairs.len());
-        for (byte, count) in &freqs.pairs {
-            q.insert(*count, HuffTree::Known(*byte));
-        }
+        let pairs: Vec<_> = freqs.pairs.iter().map(|&(count, byte)| {
+            (count, HuffTree::Known(byte))
+        }).collect();
+        let mut q = PriorityQueue::from_data(pairs);
         q.insert(0, HuffTree::Unknown);
         while let Some(((count1, tree1), (count2, tree2))) = q.remove_two() {
             let branch = HuffTree::Branch(Box::new(tree1), Box::new(tree2));

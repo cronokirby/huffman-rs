@@ -18,6 +18,12 @@ impl <K : std::cmp::Ord, V> PriorityQueue<K, V> {
     pub fn with_capacity(capacity: usize) -> Self {
         PriorityQueue { data: Vec::with_capacity(capacity) }
     }
+    
+    /// Construct a priority queue, without checking the sorted order
+    /// The data must be in reverse order by K
+    pub fn from_data(data: Vec<(K, V)>) -> Self {
+        PriorityQueue { data }
+    }
 
     /// Remove the lowest priority item from the queue, if it exists
     pub fn remove(&mut self) -> Option<(K, V)> {
