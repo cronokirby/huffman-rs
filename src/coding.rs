@@ -210,17 +210,6 @@ impl HuffWriter {
 }
 
 
-/// This represents one of the results that
-/// can happen when feeding a byte into a HuffReader
-pub enum HuffReaderResult {
-    /// The reader needs more input
-    FeedMore,
-    /// The reader can output some bytes
-    Bytes(usize),
-    /// The reader has detected the end of the transmission
-    Done
-}
-
 /// A struct allowing us to incrementally feed in bits
 /// (one byte at a time) and have it decode them using a
 /// Huffman tree
@@ -250,7 +239,7 @@ impl <'a> HuffReader<'a> {
                     i += 1;
                 }
                 HuffTree::Known(byte) => {
-                    writer.write_all(&[*byte]);
+                    writer.write_all(&[*byte])?;
                     self.tree = self.top_tree;
                 }
                 HuffTree::EOF => return Ok(false)

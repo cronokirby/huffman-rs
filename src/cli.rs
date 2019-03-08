@@ -58,8 +58,6 @@ fn encode(input: String, output: String) -> io::Result<()> {
 }
 
 fn decode(input: String, output: String) -> io::Result<()> {
-    use coding::HuffReaderResult;
-
     let mut input_file = File::open(input)?;
     let output_file = File::create(output)?;
     let mut output_writer = io::BufWriter::new(output_file);
