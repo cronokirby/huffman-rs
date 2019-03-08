@@ -207,6 +207,82 @@ impl HuffWriter {
 }
 
 
+/// This represents one of the results that
+/// can happen when feeding a byte into a HuffReader
+pub enum HuffReaderResult {
+    /// The reader needs more input
+    FeedMore,
+    /// The reader can output a byte
+    Byte(u8),
+    /// The reader has detected the end of the transmission
+    Done
+}
+
+/// A struct allowing us to incrementally feed in bits
+/// (one byte at a time) and have it decode them using a
+/// Huffman tree
+pub struct HuffReader<'a> {
+    top_tree: &'a HuffTree,
+    tree: &'a HuffTree,
+    // leftover results we haven't yielded
+    leftover: [u8; 8],
+    // The number of leftover bytes
+    num_left: usize,
+    // Have we reached end of transmission
+    is_done: bool
+}
+
+impl <'a> HuffReader<'a> {
+    pub fn new(tree: &'a HuffTree) -> Self {
+        HuffReader { top_tree: tree, tree, leftover: [0; 8], num_left: 0, is_done: false }
+    }
+
+    /// Feed a byte to this reader
+    pub fn feed(&mut self, mut byte: u8) -> HuffReaderResult {
+        if self.num_left > 0 {
+            self.num_left -= 1; 
+            return HuffReaderResult::Byte(self.leftover[self.num_left]);
+        }
+        if self.is_done {
+            return HuffReaderResult::Done;
+        }
+        let mut first_byte = None;
+        for _ in 0..8 {
+            match self.tree {
+                HuffTree::Branch(left, right) => {
+                    if byte & 1 == 0 {
+                        self.tree = &left;
+                    } else {
+                        self.tree = &right;
+                    }
+                }
+                HuffTree::Known(byte) => {
+                    if first_byte.is_none() {
+                        first_byte = Some(byte);
+                    } else {
+                        self.leftover[self.num_left] = *byte;
+                        self.num_left += 1;
+                        self.tree = self.top_tree;
+                    }
+                }
+                HuffTree::EOF => {
+                    self.is_done = true;
+                    break;
+                }
+            }
+            byte >>= 1;
+        }
+        if let Some(byte) = first_byte {
+            HuffReaderResult::Byte(*byte)
+        } else if self.is_done {
+            HuffReaderResult::Done
+        } else {
+            HuffReaderResult::FeedMore
+        }
+    }
+}
+
+
 mod test {
     use super::*;
 
