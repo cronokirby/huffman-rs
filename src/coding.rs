@@ -1,6 +1,7 @@
 //! This module contains the data structures and functions related
 //! to actually encoding data with Huffman coding
 use std::collections::HashMap;
+use std::io;
 use crate::queue::PriorityQueue;
 
 
@@ -25,7 +26,7 @@ pub fn build_byte_freqs<E, I : IntoIterator<Item=Result<u8, E>>>(bytes: I) -> Re
 /// Given this tree, we can easily decode a stream of bits as they arrive
 /// by using them to navigate the tree until we arrive at a terminal node.
 #[derive(Debug, PartialEq)]
-enum HuffTree {
+pub enum HuffTree {
     /// Branch out into 2 subtrees
     Branch(Box<HuffTree>, Box<HuffTree>),
     /// We've reached the end of the tree, and can return a byte
@@ -37,7 +38,7 @@ enum HuffTree {
 }
 
 impl HuffTree {
-    fn from_freqs(map: HashMap<u8, i32>) -> Self {
+    pub fn from_freqs(map: HashMap<u8, i32>) -> Self {
         let mut q = PriorityQueue::with_capacity(map.len());
         for (byte, count) in map {
             q.insert(count, HuffTree::Known(byte));
