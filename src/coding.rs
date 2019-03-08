@@ -85,6 +85,24 @@ impl Frequencies {
         }
         Ok(())
     }
+
+    /// Attempt to read the frequencies from a some source
+    pub fn read<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let mut num_buf: [u8; 4] = [0; 4];
+        reader.read_exact(&mut num_buf)?;
+        let num = 
+            ((num_buf[3] as usize) << 24) | 
+            ((num_buf[2] as usize) << 16) |
+            ((num_buf[1] as usize) << 8)  |
+            (num_buf[0] as usize);
+        let mut pair_buf = vec![0; num * 2];
+        reader.read_exact(&mut pair_buf)?;
+        let mut pairs = Vec::with_capacity(num);
+        for i in 0..(pair_buf.len() - 1) {
+            pairs.push((pair_buf[i + 1], pair_buf[i]));
+        }
+        Ok(Frequencies { pairs })
+    }
 }
 
 
