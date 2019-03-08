@@ -44,8 +44,8 @@ fn encode(input: String, output: String) -> io::Result<()> {
     let mut output_writer = io::BufWriter::new(output_file);
 
     let input_copy = input_file.try_clone()?;
-    let freqs = coding::build_byte_freqs(input_copy.bytes())?;
-    let tree = coding::HuffTree::from_freqs(freqs);
+    let freqs = coding::Frequencies::count_bytes(input_copy.bytes())?;
+    let tree = coding::HuffTree::from_freqs(&freqs);
     let mut encoder = coding::HuffWriter::from_tree(tree);
     input_file.seek(io::SeekFrom::Start(0))?;
     for maybe_byte in input_file.bytes() {

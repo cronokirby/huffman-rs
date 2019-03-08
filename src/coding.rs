@@ -18,6 +18,36 @@ pub fn build_byte_freqs<E, I : IntoIterator<Item=Result<u8, E>>>(bytes: I) -> Re
     Ok(acc)
 }
 
+/// A struct holding the frequencies of each character,
+/// allowing us to estimate the probability of each character
+pub struct Frequencies {
+    // We simply don't store the pairs we don't need,
+    // the other ones simply don't occurr in the file
+    pairs: Vec<(u8, u8)>
+}
+
+impl Frequencies {
+    /// Count the number of occurrences of each byte in order to build
+    /// up a struct of Frequencies
+    pub fn count_bytes<E, I : IntoIterator<Item=Result<u8, E>>>(bytes: I) -> Result<Self, E> {
+        let mut acc: HashMap<u8, u64> = HashMap::new();
+        for maybe_byte in bytes {
+            let b = maybe_byte?;
+            acc.insert(b, acc.get(&b).unwrap_or(&0) + 1);
+        }
+        // There will always be at least one byte
+        let max = acc.values().max().unwrap();
+        let mut pairs = Vec::with_capacity(acc.len());
+        // This guarantees a consistent ordering of pairs, and thus of the H Tree
+        for byte in 0..=255 {
+            if let Some(v) = acc.get(&byte) {
+                pairs.push((byte, (v * 255 / max) as u8))
+            }
+        }
+        Ok(Frequencies { pairs })
+    }
+}
+
 
 /// Represents a Huffman decoding tree.
 /// 
@@ -38,13 +68,10 @@ pub enum HuffTree {
 }
 
 impl HuffTree {
-    pub fn from_freqs(map: HashMap<u8, i32>) -> Self {
-        let mut q = PriorityQueue::with_capacity(map.len());
-        // We need to guarantee that we have the same insertion order every time
-        let mut kvs: Vec<_> = map.iter().collect();
-        kvs.sort();
-        for (&byte, &count) in kvs {
-            q.insert(count, HuffTree::Known(byte));
+    pub fn from_freqs(freqs: &Frequencies) -> Self {
+        let mut q = PriorityQueue::with_capacity(freqs.pairs.len());
+        for (byte, count) in &freqs.pairs {
+            q.insert(*count, HuffTree::Known(*byte));
         }
         q.insert(0, HuffTree::Unknown);
         while let Some(((count1, tree1), (count2, tree2))) = q.remove_two() {
@@ -138,10 +165,10 @@ mod test {
 
     #[test]
     fn huff_tree_freqs_works() {
-        let mut map = HashMap::new();
-        map.insert(70, 1);
-        map.insert(71, 2);
-        map.insert(69, 100);
+        let mut freqs = Frequencies { pairs: Vec::new() };
+        freqs.pairs.push((70, 1));
+        freqs.pairs.push((71, 2));
+        freqs.pairs.push((69, 100));
         let tree = HuffTree::Branch(
             Box::new(HuffTree::Branch(
                 Box::new(HuffTree::Branch(
@@ -152,6 +179,6 @@ mod test {
             )),
             Box::new(HuffTree::Known(69))
         );
-        assert_eq!(HuffTree::from_freqs(map), tree);
+        assert_eq!(HuffTree::from_freqs(&freqs), tree);
     }
 }
