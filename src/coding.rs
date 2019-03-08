@@ -5,18 +5,38 @@ use std::io;
 use crate::queue::PriorityQueue;
 
 
-/// Construct a map from byte to number occurrences, by counting them as they
-/// come along through the Iterator. If the iterator fails at any point, this function
-/// immediately returns the error.
-/// This takes an iterator over an error, mainly to work nicely with the file api.
-pub fn build_byte_freqs<E, I : IntoIterator<Item=Result<u8, E>>>(bytes: I) -> Result<HashMap<u8, i32>, E> {
-    let mut acc = HashMap::new();
-    for maybe_byte in bytes {
-        let b = maybe_byte?;
-        acc.insert(b, acc.get(&b).unwrap_or(&0) + 1);
+#[inline]
+fn mask(size: usize) -> u64 {
+    if size == 64 {
+        u64::max_value()
+    } else {
+        (1 << size) - 1
     }
-    Ok(acc)
 }
+
+
+// Like write_u64, but we may not write all the bytes
+// if the trim size is low enough
+#[inline]
+fn write_u64_trimmed<W: io::Write>(writer: &mut W, mut num: u64, significant: usize) -> io::Result<()> {
+    if significant == 0 {
+        return Ok(())
+    }
+    let num_bytes = 1 + significant / 8;
+    let mut bytes = [0; 8];
+    for byte in bytes[..num_bytes].iter_mut() {
+        *byte = num as u8;
+        num >>= 8;
+    }
+    writer.write_all(&bytes[..num_bytes])
+}
+
+// uses reverse network order, because we write bits in from LSB to MSB
+// in the u64, so we want the first byte to be the least significant
+fn write_u64<W: io::Write>(writer: &mut W, num: u64) -> io::Result<()> {
+    write_u64_trimmed(writer, num, 64)
+}
+
 
 /// A struct holding the frequencies of each character,
 /// allowing us to estimate the probability of each character
@@ -48,6 +68,23 @@ impl Frequencies {
         pairs.sort_by(|(count1, _), (count2, _)| count2.cmp(count1));
         Ok(Frequencies { pairs })
     }
+
+    /// This function writes the frequencies as a sequence of
+    /// (byte, frequency) pairs, preceded by the number of pairs
+    /// it can read.
+    pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        let mut len = self.pairs.len() as u32;
+        let mut bytes = [0; 4];
+        for byte in bytes.iter_mut().rev() {
+            *byte = len as u8;
+            len >>= 8;
+        }
+        writer.write_all(&bytes)?;
+        for &(count, byte) in &self.pairs {
+            writer.write_all(&[byte, count])?;
+        }
+        Ok(())
+    }
 }
 
 
@@ -57,7 +94,7 @@ impl Frequencies {
 /// for each of the symbols we want to encode: in our case, bytes.
 /// Given this tree, we can easily decode a stream of bits as they arrive
 /// by using them to navigate the tree until we arrive at a terminal node.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum HuffTree {
     /// Branch out into 2 subtrees
     Branch(Box<HuffTree>, Box<HuffTree>),
@@ -72,7 +109,7 @@ pub enum HuffTree {
 impl HuffTree {
     pub fn from_freqs(freqs: &Frequencies) -> Self {
         let pairs: Vec<_> = freqs.pairs.iter().map(|&(count, byte)| {
-            (count, HuffTree::Known(byte))
+            (count as u64, HuffTree::Known(byte))
         }).collect();
         let mut q = PriorityQueue::from_data(pairs);
         q.insert(0, HuffTree::Unknown);
@@ -85,23 +122,6 @@ impl HuffTree {
     }
 }
 
-#[inline]
-fn mask(size: usize) -> u64 {
-    if size == 64 {
-        u64::max_value()
-    } else {
-        (1 << size) - 1
-    }
-}
-
-fn write_u64<W: io::Write>(writer: &mut W, mut num: u64) -> io::Result<()> {
-    let mut bytes = [0; 8];
-    for byte in bytes.iter_mut().rev() {
-        *byte = num as u8;
-        num >>= 8;
-    }
-    writer.write_all(&bytes)
-}
 
 
 /// A writer using a hufftree to write bytes to some source
@@ -158,6 +178,13 @@ impl HuffWriter {
             self.write_bits(bits, bit_size, writer)?;
             writer.write_all(&[byte])
         }
+    }
+
+    /// Write the end of the transmission, flushing out the remaining bits, and writing
+    /// the EOF symbol
+    pub fn end_transmission<W: io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        // this won't write anything if self.shift is 0, avoiding writing the last bytes twice
+        write_u64_trimmed(writer, self.scratch, self.shift)
     }
 }
 

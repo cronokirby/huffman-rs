@@ -45,6 +45,8 @@ fn encode(input: String, output: String) -> io::Result<()> {
 
     let input_copy = input_file.try_clone()?;
     let freqs = coding::Frequencies::count_bytes(input_copy.bytes())?;
+    freqs.write(&mut output_writer)?;
+
     let tree = coding::HuffTree::from_freqs(&freqs);
     let mut encoder = coding::HuffWriter::from_tree(tree);
     input_file.seek(io::SeekFrom::Start(0))?;
@@ -52,5 +54,5 @@ fn encode(input: String, output: String) -> io::Result<()> {
         let byte = maybe_byte?;
         encoder.write_byte(byte, &mut output_writer)?;
     }
-    Ok(())
+    encoder.end_transmission(&mut output_writer)
 }
