@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io;
-use std::io::{Read, Seek};
+use std::io::{Read, Seek, Write};
 use crate::structopt::StructOpt;
 use crate::coding;
 
@@ -32,7 +32,7 @@ impl Opt {
     /// sub programs.
     pub fn dispatch(self) -> io::Result<()> {
         match self {
-            Opt::Decode { .. } => unimplemented!(),
+            Opt::Decode { input, output } => decode(input, output),
             Opt::Encode { input, output } => encode(input, output)
         }
     }
@@ -55,4 +55,25 @@ fn encode(input: String, output: String) -> io::Result<()> {
         encoder.write_byte(byte, &mut output_writer)?;
     }
     encoder.end_transmission(&mut output_writer)
+}
+
+fn decode(input: String, output: String) -> io::Result<()> {
+    use coding::HuffReaderResult;
+
+    let mut input_file = File::open(input)?;
+    let output_file = File::create(output)?;
+    let mut output_writer = io::BufWriter::new(output_file);
+
+    let freqs = coding::Frequencies::read(&mut input_file)?;
+    let tree = coding::HuffTree::from_freqs(&freqs);
+    let mut reader = coding::HuffReader::new(&tree);
+
+    for maybe_byte in input_file.bytes() {
+        let byte = maybe_byte?;
+        let can_feed = reader.feed(byte, &mut output_writer)?;
+        if !can_feed {
+            break;
+        }
+    }
+    Ok(())
 }

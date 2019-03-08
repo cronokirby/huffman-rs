@@ -22,7 +22,7 @@ fn write_u64_trimmed<W: io::Write>(writer: &mut W, mut num: u64, significant: us
     if significant == 0 {
         return Ok(())
     }
-    let num_bytes = 1 + significant / 8;
+    let num_bytes = (significant - 1) / 8 + 1;
     let mut bytes = [0; 8];
     for byte in bytes[..num_bytes].iter_mut() {
         *byte = num as u8;
@@ -40,6 +40,7 @@ fn write_u64<W: io::Write>(writer: &mut W, num: u64) -> io::Result<()> {
 
 /// A struct holding the frequencies of each character,
 /// allowing us to estimate the probability of each character
+#[derive(Clone, Debug)]
 pub struct Frequencies {
     // We simply don't store the pairs we don't need,
     // the other ones simply don't occurr in the file
@@ -91,15 +92,17 @@ impl Frequencies {
         let mut num_buf: [u8; 4] = [0; 4];
         reader.read_exact(&mut num_buf)?;
         let num = 
-            ((num_buf[3] as usize) << 24) | 
-            ((num_buf[2] as usize) << 16) |
-            ((num_buf[1] as usize) << 8)  |
-            (num_buf[0] as usize);
+            ((num_buf[0] as usize) << 24) | 
+            ((num_buf[1] as usize) << 16) |
+            ((num_buf[2] as usize) << 8)  |
+            (num_buf[3] as usize);
         let mut pair_buf = vec![0; num * 2];
         reader.read_exact(&mut pair_buf)?;
         let mut pairs = Vec::with_capacity(num);
-        for i in 0..(pair_buf.len() - 1) {
+        let mut i = 0;
+        while i < pair_buf.len() - 1 {
             pairs.push((pair_buf[i + 1], pair_buf[i]));
+            i += 2
         }
         Ok(Frequencies { pairs })
     }
@@ -212,8 +215,8 @@ impl HuffWriter {
 pub enum HuffReaderResult {
     /// The reader needs more input
     FeedMore,
-    /// The reader can output a byte
-    Byte(u8),
+    /// The reader can output some bytes
+    Bytes(usize),
     /// The reader has detected the end of the transmission
     Done
 }
@@ -224,30 +227,18 @@ pub enum HuffReaderResult {
 pub struct HuffReader<'a> {
     top_tree: &'a HuffTree,
     tree: &'a HuffTree,
-    // leftover results we haven't yielded
-    leftover: [u8; 8],
-    // The number of leftover bytes
-    num_left: usize,
-    // Have we reached end of transmission
-    is_done: bool
 }
 
 impl <'a> HuffReader<'a> {
     pub fn new(tree: &'a HuffTree) -> Self {
-        HuffReader { top_tree: tree, tree, leftover: [0; 8], num_left: 0, is_done: false }
+        HuffReader { top_tree: tree, tree }
     }
 
     /// Feed a byte to this reader
-    pub fn feed(&mut self, mut byte: u8) -> HuffReaderResult {
-        if self.num_left > 0 {
-            self.num_left -= 1; 
-            return HuffReaderResult::Byte(self.leftover[self.num_left]);
-        }
-        if self.is_done {
-            return HuffReaderResult::Done;
-        }
-        let mut first_byte = None;
-        for _ in 0..8 {
+    /// Return true if the reader can continue to accept input
+    pub fn feed<W: io::Write>(&mut self, mut byte: u8, writer: &mut W) -> io::Result<bool> {
+        let mut i = 0;
+        while i < 8 {
             match self.tree {
                 HuffTree::Branch(left, right) => {
                     if byte & 1 == 0 {
@@ -255,30 +246,17 @@ impl <'a> HuffReader<'a> {
                     } else {
                         self.tree = &right;
                     }
+                    byte >>= 1;
+                    i += 1;
                 }
                 HuffTree::Known(byte) => {
-                    if first_byte.is_none() {
-                        first_byte = Some(byte);
-                    } else {
-                        self.leftover[self.num_left] = *byte;
-                        self.num_left += 1;
-                        self.tree = self.top_tree;
-                    }
+                    writer.write_all(&[*byte]);
+                    self.tree = self.top_tree;
                 }
-                HuffTree::EOF => {
-                    self.is_done = true;
-                    break;
-                }
+                HuffTree::EOF => return Ok(false)
             }
-            byte >>= 1;
         }
-        if let Some(byte) = first_byte {
-            HuffReaderResult::Byte(*byte)
-        } else if self.is_done {
-            HuffReaderResult::Done
-        } else {
-            HuffReaderResult::FeedMore
-        }
+        Ok(true)
     }
 }
 
