@@ -53,6 +53,68 @@ impl HuffTree {
     }
 }
 
+#[inline]
+fn mask(size: usize) -> u8 {
+    if size == 8 {
+        0b1111_1111
+    } else {
+        (1 << size) - 1
+    }
+}
+
+/// A writer using a hufftree to write bytes to some source
+pub struct HuffWriter {
+    map: HashMap<u8, (u8, usize)>,
+    default: (u8, usize),
+    shift: usize,
+    scratch: u8
+}
+
+impl HuffWriter {
+    pub fn from_tree(start_tree: HuffTree) -> Self {
+        let mut trees = Vec::new();
+        trees.push((start_tree, 0, 0));
+        let mut map = HashMap::new();
+        let mut default = (0, 0);
+        while let Some((tree, bits, shift)) = trees.pop() {
+            match tree {
+                HuffTree::Branch(left, right) => {
+                    trees.push((*left, bits, shift + 1));
+                    trees.push((*right, (1 << shift) | bits, shift + 1));
+                }
+                HuffTree::Unknown => default = (bits, shift),
+                HuffTree::Known(byte) => { map.insert(byte, (bits, shift)).unwrap(); }
+            }
+        }
+        HuffWriter { map, default, shift: 0, scratch: 0 }
+    }
+
+    fn write_bits<W: io::Write>(&mut self, bits: u8, bit_size: usize, writer: &mut W) -> io::Result<()> {
+        let bit_size_left = 8 - self.shift;
+        if bit_size > bit_size_left {
+            let to_write = ((bits & mask(bit_size_left)) << self.shift) | self.scratch;
+            self.scratch = bits >> bit_size_left;
+            self.shift = bit_size - bit_size_left;
+            writer.write_all(&[to_write])
+        } else {
+            self.scratch = (bits << self.shift) | self.scratch;
+            self.shift += bit_size;
+            Ok(())
+        }
+    }
+
+    pub fn write_byte<W: io::Write>(&mut self, byte: u8, writer: &mut W) -> io::Result<()> {
+        if let Some(&(bits, bit_size)) = self.map.get(&byte) {
+            self.write_bits(bits, bit_size, writer)
+        } else {
+            let (bits, bit_size) = self.default;
+            self.write_bits(bits, bit_size, writer)?;
+            writer.write_all(&[byte])
+        }
+    }
+}
+
+
 mod test {
     use super::*;
 
