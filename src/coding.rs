@@ -83,7 +83,7 @@ impl HuffWriter {
                     trees.push((*right, (1 << shift) | bits, shift + 1));
                 }
                 HuffTree::Unknown => default = (bits, shift),
-                HuffTree::Known(byte) => { map.insert(byte, (bits, shift)).unwrap(); }
+                HuffTree::Known(byte) => { map.insert(byte, (bits, shift)); }
             }
         }
         HuffWriter { map, default, shift: 0, scratch: 0 }
@@ -91,7 +91,12 @@ impl HuffWriter {
 
     fn write_bits<W: io::Write>(&mut self, bits: u8, bit_size: usize, writer: &mut W) -> io::Result<()> {
         let bit_size_left = 8 - self.shift;
-        if bit_size > bit_size_left {
+        if self.shift == 8 {
+            let scratch = self.scratch;
+            self.scratch = bits;
+            self.shift = bit_size;
+            writer.write_all(&[scratch])
+        } else if bit_size > bit_size_left {
             let to_write = ((bits & mask(bit_size_left)) << self.shift) | self.scratch;
             self.scratch = bits >> bit_size_left;
             self.shift = bit_size - bit_size_left;
