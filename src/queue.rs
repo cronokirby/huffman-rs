@@ -3,6 +3,7 @@
 /// `K` represents the key on which the list is sorted, in descending order.
 /// This is the most useful order for Huffman coding.
 /// `V` is the type of things this queue can store
+/// Note that the order of insertion matters if K is the same.
 pub struct PriorityQueue<K, V> {
     data: Vec<(K, V)>
 }

@@ -40,7 +40,10 @@ pub enum HuffTree {
 impl HuffTree {
     pub fn from_freqs(map: HashMap<u8, i32>) -> Self {
         let mut q = PriorityQueue::with_capacity(map.len());
-        for (byte, count) in map {
+        // We need to guarantee that we have the same insertion order every time
+        let mut kvs: Vec<_> = map.iter().collect();
+        kvs.sort();
+        for (&byte, &count) in kvs {
             q.insert(count, HuffTree::Known(byte));
         }
         q.insert(0, HuffTree::Unknown);
