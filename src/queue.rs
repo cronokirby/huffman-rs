@@ -9,16 +9,6 @@ pub struct PriorityQueue<K, V> {
 }
 
 impl <K : std::cmp::Ord, V> PriorityQueue<K, V> {
-    /// Construct an empty priority queue
-    pub fn new() -> Self {
-        PriorityQueue { data: Vec::new() }
-    }
-
-    /// Construct a priority queue with a pre-allocated capacity
-    pub fn with_capacity(capacity: usize) -> Self {
-        PriorityQueue { data: Vec::with_capacity(capacity) }
-    }
-    
     /// Construct a priority queue, without checking the sorted order
     /// The data must be in reverse order by K
     pub fn from_data(data: Vec<(K, V)>) -> Self {
@@ -51,12 +41,13 @@ impl <K : std::cmp::Ord, V> PriorityQueue<K, V> {
     }
 }
 
+#[cfg(test)]
 mod test {
     use super::PriorityQueue;
 
     #[test]
     fn inserting_preserves_order() {
-        let mut q: PriorityQueue<i32, i32> = PriorityQueue::new();
+        let mut q: PriorityQueue<i32, i32> = PriorityQueue::from_data(Vec::new());
         q.insert(100, 69);
         q.insert(1, 80);
         assert_eq!(q.remove(), Some((1, 80)));

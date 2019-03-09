@@ -1,8 +1,9 @@
 use std::fs::File;
 use std::io;
-use std::io::{Read, Seek, Write};
+use std::io::{Read, Seek};
 use crate::structopt::StructOpt;
 use crate::coding;
+
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "huffman")]

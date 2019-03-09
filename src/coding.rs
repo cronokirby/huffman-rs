@@ -250,15 +250,16 @@ impl <'a> HuffReader<'a> {
 }
 
 
+#[cfg(test)]
 mod test {
-    use super::*;
+    use super::{HuffTree, Frequencies};
 
     #[test]
     fn huff_tree_freqs_works() {
         let mut freqs = Frequencies { pairs: Vec::new() };
-        freqs.pairs.push((70, 1));
-        freqs.pairs.push((71, 2));
-        freqs.pairs.push((69, 100));
+        freqs.pairs.push((100, 69));
+        freqs.pairs.push((2, 71));
+        freqs.pairs.push((1, 70));
         let tree = HuffTree::Branch(
             Box::new(HuffTree::Branch(
                 Box::new(HuffTree::Branch(

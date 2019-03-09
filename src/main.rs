@@ -1,6 +1,5 @@
 use std::io;
 
-#[macro_use]
 extern crate structopt;
 use structopt::StructOpt;
 
