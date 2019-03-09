@@ -6,9 +6,9 @@ use crate::queue::PriorityQueue;
 
 
 #[inline]
-fn mask(size: usize) -> u64 {
-    if size == 64 {
-        u64::max_value()
+fn mask(size: usize) -> u128 {
+    if size == 128 {
+        u128::max_value()
     } else {
         (1 << size) - 1
     }
@@ -18,12 +18,12 @@ fn mask(size: usize) -> u64 {
 // Like write_u64, but we may not write all the bytes
 // if the trim size is low enough
 #[inline]
-fn write_u64_trimmed<W: io::Write>(writer: &mut W, mut num: u64, significant: usize) -> io::Result<()> {
+fn write_u128_trimmed<W: io::Write>(writer: &mut W, mut num: u128, significant: usize) -> io::Result<()> {
     if significant == 0 {
         return Ok(())
     }
     let num_bytes = (significant - 1) / 8 + 1;
-    let mut bytes = [0; 8];
+    let mut bytes = [0; 16];
     for byte in bytes[..num_bytes].iter_mut() {
         *byte = num as u8;
         num >>= 8;
@@ -33,8 +33,8 @@ fn write_u64_trimmed<W: io::Write>(writer: &mut W, mut num: u64, significant: us
 
 // uses reverse network order, because we write bits in from LSB to MSB
 // in the u64, so we want the first byte to be the least significant
-fn write_u64<W: io::Write>(writer: &mut W, num: u64) -> io::Result<()> {
-    write_u64_trimmed(writer, num, 64)
+fn write_u128<W: io::Write>(writer: &mut W, num: u128) -> io::Result<()> {
+    write_u128_trimmed(writer, num, 128)
 }
 
 
@@ -145,10 +145,10 @@ impl HuffTree {
 
 /// A writer using a hufftree to write bytes to some source
 pub struct HuffWriter {
-    map: HashMap<u8, (u64, usize)>,
-    eof: (u64, usize),
+    map: HashMap<u8, (u128, usize)>,
+    eof: (u128, usize),
     shift: usize,
-    scratch: u64
+    scratch: u128
 }
 
 impl HuffWriter {
@@ -170,18 +170,18 @@ impl HuffWriter {
         HuffWriter { map, eof, shift: 0, scratch: 0 }
     }
 
-    fn write_bits<W: io::Write>(&mut self, bits: u64, bit_size: usize, writer: &mut W) -> io::Result<()> {
-        let bit_size_left = 64 - self.shift;
-        if self.shift == 64 {
+    fn write_bits<W: io::Write>(&mut self, bits: u128, bit_size: usize, writer: &mut W) -> io::Result<()> {
+        let bit_size_left = 128 - self.shift;
+        if self.shift == 128 {
             let scratch = self.scratch;
             self.scratch = bits;
             self.shift = bit_size;
-            write_u64(writer, scratch)
+            write_u128(writer, scratch)
         } else if bit_size > bit_size_left {
             let to_write = ((bits & mask(bit_size_left)) << self.shift) | self.scratch;
             self.scratch = bits >> bit_size_left;
             self.shift = bit_size - bit_size_left;
-            write_u64(writer, to_write)
+            write_u128(writer, to_write)
         } else {
             self.scratch = (bits << self.shift) | self.scratch;
             self.shift += bit_size;
@@ -205,7 +205,7 @@ impl HuffWriter {
         let (bits, bit_size) = self.eof;
         self.write_bits(bits, bit_size, writer)?;
         // this won't write anything if self.shift is 0, avoiding writing the last bytes twice
-        write_u64_trimmed(writer, self.scratch, self.shift)
+        write_u128_trimmed(writer, self.scratch, self.shift)
     }
 }
 
