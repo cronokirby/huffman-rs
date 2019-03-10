@@ -1,6 +1,5 @@
 //! This module contains the data structures and functions related
 //! to actually encoding data with Huffman coding
-use std::collections::HashMap;
 use std::io;
 use crate::queue::PriorityQueue;
 
