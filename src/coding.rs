@@ -51,19 +51,22 @@ impl Frequencies {
     /// Count the number of occurrences of each byte in order to build
     /// up a struct of Frequencies
     pub fn count_bytes<E, I : IntoIterator<Item=Result<u8, E>>>(bytes: I) -> Result<Self, E> {
-        let mut acc: HashMap<u8, u64> = HashMap::new();
+        let mut acc: Vec<u64> = vec![0;256];
         for maybe_byte in bytes {
             let b = maybe_byte?;
-            acc.insert(b, acc.get(&b).unwrap_or(&0) + 1);
+            // Always fine since the byte is in the index
+            acc[b as usize] += 1;
         }
         // There will always be at least one byte
-        let max = acc.values().max().unwrap();
+        let max = acc.iter().max().unwrap();
         let mut pairs = Vec::with_capacity(acc.len());
         // This guarantees a consistent ordering of pairs, and thus of the H Tree
-        for byte in 0..=255 {
-            if let Some(v) = acc.get(&byte) {
-                pairs.push(((v * 255 / max) as u8, byte))
+        let mut byte = 0;
+        for &count in &acc {
+            if count != 0 {
+                pairs.push(((count * 255 / max) as u8, byte));
             }
+            byte += 1
         }
         // Sort pairs in reverse order by count
         pairs.sort_by(|(count1, _), (count2, _)| count2.cmp(count1));
