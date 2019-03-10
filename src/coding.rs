@@ -152,7 +152,7 @@ pub struct HuffWriter {
 }
 
 impl HuffWriter {
-    pub fn from_tree(start_tree: HuffTree) -> Self {
+    pub fn from_tree(start_tree: &HuffTree) -> Self {
         let mut trees = Vec::new();
         trees.push((start_tree, 0, 0));
         let mut map = HashMap::new();
@@ -160,11 +160,11 @@ impl HuffWriter {
         while let Some((tree, bits, shift)) = trees.pop() {
             match tree {
                 HuffTree::Branch(left, right) => {
-                    trees.push((*left, bits, shift + 1));
-                    trees.push((*right, (1 << shift) | bits, shift + 1));
+                    trees.push((left, bits, shift + 1));
+                    trees.push((right, (1 << shift) | bits, shift + 1));
                 }
                 HuffTree::EOF => eof = (bits, shift),
-                HuffTree::Known(byte) => { map.insert(byte, (bits, shift)); }
+                HuffTree::Known(byte) => { map.insert(*byte, (bits, shift)); }
             }
         }
         HuffWriter { map, eof, shift: 0, scratch: 0 }

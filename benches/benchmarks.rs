@@ -23,10 +23,16 @@ fn wrap_byte(b: u8) -> Result<u8, ()> {
     Ok(b)
 }
 
-fn encode(bytes: &mut Vec<u8>) {
+fn build_freqs(bytes: &Vec<u8>) -> coding::Frequencies {
     let iter1 = bytes.iter().map(|b| wrap_byte(*b));
-    let freqs = coding::Frequencies::count_bytes(iter1).unwrap();
-    let tree = coding::HuffTree::from_freqs(&freqs);
+    coding::Frequencies::count_bytes(iter1).unwrap()
+}
+
+fn build_tree(freqs: &coding::Frequencies) -> coding::HuffTree {
+    coding::HuffTree::from_freqs(freqs)
+}
+
+fn encode(bytes: &Vec<u8>, tree: &coding::HuffTree) {
     let mut encoder = coding::HuffWriter::from_tree(tree);
     let mut writer = EmptyWriter;
     for byte in bytes {
@@ -42,7 +48,21 @@ fn encoding_benchmark(c: &mut Criterion) {
             bytes.push(b);
         }
     }
-    c.bench_function("encoding bytes", move |b| b.iter(|| encode(&mut bytes)));
+    let bytes1 = bytes.clone();
+    let freqs = build_freqs(&bytes);
+    let tree = build_tree(&freqs);
+    c.bench_function("building freqs", move |b| b.iter(|| {
+        build_freqs(&bytes);
+    }));
+    c.bench_function("building tree", move |b| b.iter(|| {
+        build_tree(&freqs);
+    }));
+    c.bench_function("encoding with tree", move |b| b.iter(|| {
+        encode(&bytes1, &tree);
+    }));
+
+
+    //c.bench_function("encoding bytes", move |b| b.iter(|| encode(&mut bytes)));
 }
 
 criterion_group!(benches, encoding_benchmark);

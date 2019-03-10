@@ -49,7 +49,7 @@ fn encode(input: String, output: String) -> io::Result<()> {
     freqs.write(&mut output_writer)?;
 
     let tree = coding::HuffTree::from_freqs(&freqs);
-    let mut encoder = coding::HuffWriter::from_tree(tree);
+    let mut encoder = coding::HuffWriter::from_tree(&tree);
     input_file.seek(io::SeekFrom::Start(0))?;
     for maybe_byte in input_file.bytes() {
         let byte = maybe_byte?;
