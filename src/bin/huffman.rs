@@ -3,9 +3,8 @@ use std::io;
 extern crate structopt;
 use structopt::StructOpt;
 
-mod cli;
-pub mod coding;
-mod queue;
+extern crate huffman;
+use huffman::cli;
 
 
 fn main() -> io::Result<()> {
