@@ -64,7 +64,7 @@ impl Frequencies {
         let mut byte = 0;
         for &count in &acc {
             if count != 0 {
-                pairs.push(((count * 255 / max) as u8, byte));
+                pairs.push(((count * 255 / max) as u8, byte as u8));
             }
             byte += 1
         }
