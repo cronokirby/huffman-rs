@@ -148,7 +148,7 @@ impl HuffTree {
 
 /// A writer using a hufftree to write bytes to some source
 pub struct HuffWriter {
-    map: HashMap<u8, (u128, usize)>,
+    map: Box<[(u128, usize); 256]>,
     eof: (u128, usize),
     shift: usize,
     scratch: u128
@@ -158,7 +158,8 @@ impl HuffWriter {
     pub fn from_tree(start_tree: &HuffTree) -> Self {
         let mut trees = Vec::new();
         trees.push((start_tree, 0, 0));
-        let mut map = HashMap::new();
+        // Uninitialized values are never actually reached
+        let mut map = Box::new([(0, 0); 256]);
         let mut eof = (0, 0);
         while let Some((tree, bits, shift)) = trees.pop() {
             match tree {
@@ -167,7 +168,7 @@ impl HuffWriter {
                     trees.push((right, (1 << shift) | bits, shift + 1));
                 }
                 HuffTree::EOF => eof = (bits, shift),
-                HuffTree::Known(byte) => { map.insert(*byte, (bits, shift)); }
+                HuffTree::Known(byte) => { map[*byte as usize] = (bits, shift) }
             }
         }
         HuffWriter { map, eof, shift: 0, scratch: 0 }
@@ -193,13 +194,8 @@ impl HuffWriter {
     }
 
     pub fn write_byte<W: io::Write>(&mut self, byte: u8, writer: &mut W) -> io::Result<()> {
-        // Since we used the same file to generate the map that we're reading from
-        // The other branch should never be reached in practice
-        if let Some(&(bits, bit_size)) = self.map.get(&byte) {
-            self.write_bits(bits, bit_size, writer)
-        } else {
-            Ok(())
-        }
+        let (bits, bit_size) = self.map[byte as usize];
+        self.write_bits(bits, bit_size, writer)
     }
 
     /// Write the end of the transmission, flushing out the remaining bits, and writing
