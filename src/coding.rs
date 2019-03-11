@@ -4,16 +4,6 @@ use std::io;
 use crate::queue::PriorityQueue;
 
 
-#[inline]
-fn mask(size: usize) -> u128 {
-    if size == 128 {
-        u128::max_value()
-    } else {
-        (1 << size) - 1
-    }
-}
-
-
 // Like write_u64, but we may not write all the bytes
 // if the trim size is low enough
 #[inline]
