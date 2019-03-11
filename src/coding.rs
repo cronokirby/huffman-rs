@@ -174,20 +174,14 @@ impl HuffWriter {
     }
 
     fn write_bits<W: io::Write>(&mut self, bits: u128, bit_size: usize, writer: &mut W) -> io::Result<()> {
-        let bit_size_left = 128 - self.shift;
-        if self.shift == 128 {
-            let scratch = self.scratch;
-            self.scratch = bits;
-            self.shift = bit_size;
-            write_u128(writer, scratch)
-        } else if bit_size > bit_size_left {
-            let to_write = ((bits & mask(bit_size_left)) << self.shift) | self.scratch;
-            self.scratch = bits >> bit_size_left;
-            self.shift = bit_size - bit_size_left;
+        self.scratch |= bits << self.shift; 
+        self.shift += bit_size;
+        if self.shift >= 128 {
+            self.shift -= 128;
+            let to_write = self.scratch;
+            self.scratch = bits >> (bit_size - self.shift);
             write_u128(writer, to_write)
         } else {
-            self.scratch = (bits << self.shift) | self.scratch;
-            self.shift += bit_size;
             Ok(())
         }
     }
